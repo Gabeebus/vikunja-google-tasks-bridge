@@ -1,0 +1,10 @@
+[Unit]
+Description=Sync Project Hub every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=60s
+Unit=project-hub-sync.service
+
+[Install]
+WantedBy=timers.target

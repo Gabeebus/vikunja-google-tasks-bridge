@@ -1,0 +1,23 @@
+[Unit]
+Description=Project Hub Google Tasks bridge
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=project-sync
+Group=project-sync
+WorkingDirectory=/opt/vikunja-google-tasks-bridge
+ExecStart=/opt/vikunja-google-tasks-bridge/.venv/bin/python bridge.py --config config.json
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/vikunja-google-tasks-bridge/state /opt/vikunja-google-tasks-bridge/secrets
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+TimeoutStartSec=240
+

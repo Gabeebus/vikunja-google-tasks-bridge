@@ -1,0 +1,17 @@
+{
+  "vikunja_url": "http://127.0.0.1:3456",
+  "vikunja_token_file": "/opt/vikunja-google-tasks-bridge/secrets/vikunja-token",
+  "google_token_file": "/opt/vikunja-google-tasks-bridge/secrets/google-token.json",
+  "project_id": 0,
+  "list_view_id": 0,
+  "kanban_view_id": 0,
+  "timezone": "America/New_York",
+  "state_file": "/opt/vikunja-google-tasks-bridge/state/state.sqlite",
+  "google_lists": {
+    "Backburner": "REPLACE_WITH_LIST_ID",
+    "Next": "REPLACE_WITH_LIST_ID",
+    "In progress": "REPLACE_WITH_LIST_ID",
+    "Waiting": "REPLACE_WITH_LIST_ID",
+    "Completed": "REPLACE_WITH_LIST_ID"
+  }
+}
