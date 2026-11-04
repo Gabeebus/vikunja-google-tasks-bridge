@@ -10,6 +10,6 @@ that account, use private credential directories, and preserve the systemd limit
 Use trusted HTTPS when a service crosses a network boundary. This source review
 and automated tests are not a penetration test or a security guarantee.
 
-The repository is private and has no published reporting address. Report issues
+The repository is public and has no published security-reporting address. Report issues
 privately to the repository owner through an agreed private channel. Do not create
 a public issue containing sensitive information.

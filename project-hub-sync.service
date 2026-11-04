@@ -8,7 +8,7 @@ Type=oneshot
 User=project-sync
 Group=project-sync
 WorkingDirectory=/opt/vikunja-google-tasks-bridge
-ExecStart=/opt/vikunja-google-tasks-bridge/.venv/bin/python bridge.py --config config.json
+ExecStart=/opt/vikunja-google-tasks-bridge/.venv/bin/python bridge.py --config state/config.json
 Environment=PYTHONDONTWRITEBYTECODE=1
 UMask=0077
 NoNewPrivileges=true

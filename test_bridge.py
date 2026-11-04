@@ -128,5 +128,42 @@ class WorkerTests(unittest.TestCase):
             v.snapshot()
 
 
+class RichDescriptionTests(unittest.TestCase):
+    def write_description(self, description, key=None, **changes):
+        from zoneinfo import ZoneInfo
+        from bridge import plain
+        from sync_core import split_marker
+        v = object.__new__(Vikunja)
+        v.project, v.view, v.zone = 2, 12, ZoneInfo('America/New_York')
+        v.buckets = {'Next': 7}
+        v.call = Mock(side_effect=[({'id': 1}, {}), ({}, {})])
+        notes, _ = split_marker(plain(description))
+        value = dict(BASE, notes=notes)
+        current = {'raw': {'id': 1, 'description': description}, 'key': key, 'value': value}
+        v.write('1', dict(value, **changes), 'abc', current)
+        self.assertEqual(current['raw']['description'], description)
+        return v.call.call_args_list[0].args[2]['description']
+
+    def test_first_registration_preserves_existing_rich_html_and_adds_one_marker(self):
+        from bridge import plain
+        from sync_core import split_marker
+        rich = '<p><strong>Bold</strong> and <a href="https://example.com">link</a></p><ul><li data-checked="true">Checklist</li></ul>'
+        updated = self.write_description(rich)
+        self.assertTrue(updated.startswith(rich))
+        self.assertEqual(updated.count('[project-hub-sync:abc]'), 1)
+        self.assertEqual(split_marker(plain(updated)), (plain(rich), 'abc'))
+
+    def test_title_change_on_registered_task_preserves_exact_rich_html(self):
+        rich = '<p><em>Keep formatting</em></p><p>[project-hub-sync:abc]</p>'
+        self.assertEqual(self.write_description(rich, key='abc', title='New title'), rich)
+
+    def test_google_notes_edit_replaces_rich_html_with_escaped_plain_text(self):
+        from bridge import plain
+        from sync_core import split_marker
+        updated = self.write_description('<p><strong>Old</strong></p><p>[project-hub-sync:abc]</p>', key='abc', notes='<script>plain text</script>')
+        self.assertNotIn('<script>', updated)
+        self.assertEqual(split_marker(plain(updated)), ('<script>plain text</script>', 'abc'))
+
+
 if __name__ == '__main__':
     unittest.main()

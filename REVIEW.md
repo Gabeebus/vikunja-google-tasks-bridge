@@ -1,49 +1,39 @@
-# Initial repository review
+# Bridge validation review
 
-Prepared from the custom bridge source for a private repository. No production
-credential/config/state files, private chat exports or infrastructure inventories
-are included. Owner approval and a verified destination are required before upload.
+The updated setup was tested on Debian 13 with Python 3.13 and Vikunja v2.7.1,
+using a separate Google test account and a disposable local Vikunja instance.
+No production credentials, task data, configuration, chat exports or inventories
+are included in this repository.
 
-## Result
+## Verified
 
-The original seven source/dependency files were compared by SHA256 with the live
-bridge. All matched the reviewed baseline. A production check read 21 tasks from
-each service, reported 0 persisted review items, and the existing 14 tests passed.
-The timer remained active; no task data was changed by that check. The draft
-fixes below are additional changes and have not been installed in production.
+- Anonymous public clone and pull, dependency installation, and the original 24 offline tests on Linux.
+- The expanded 27-test suite passes locally, including three rich-description regressions; a fresh source-bound Linux worker receipt is required before publishing this revision.
+- Dedicated non-login service user, private configuration and credential ownership.
+- Fresh Google authorization and offline token refresh; five dedicated task lists.
+- Actual manual CLI runs and the systemd service/timer using the test accounts.
+- Titles, notes, date-only due dates and column changes in both directions.
+- Completion, reopening, new task import, and unchanged reruns without duplicates
+  or changes to either service's update timestamps (two disposable tasks).
 
-- 16 offline tests pass on both the local machine and the production Linux dependency
- environment (Python 3.13.5), covering merge conflicts, interrupted creates, missing
- counterparts, pagination and the new read-check regression cases.
-- Example paths target a generic install directory; server addresses, actual
- project/view/list IDs and the original public information domain were removed.
-- A dependency lock, setup/recovery instructions and credential exclusions are
- included. No automatic installer runs or changes a production system.
-- No open-source license selected. Keep private pending an owner license decision.
+## Corrections prepared
 
-## Fixes in this draft
+The README now includes public cloning, prerequisites, the virtualenv authorization
+command, private writable configuration, and complete service setup. Bootstrap
+checks all list-name collisions before creation and resumes interrupted creation.
+Private JSON saves use unique temporary files and atomic replacement. Authorization
+timeouts give a readable recovery message without saving a token. First registration
+now preserves existing Vikunja HTML and appends only the sync marker. Title changes
+preserve registered rich notes; intentional Google notes edits remain plain text.
 
-The original `--check` could detect a new field conflict or missing task during
-its scan but still report zero review items because it counted only issues already
-persisted in SQLite. The draft counts those newly detected issues in memory without
-writing either task service or changing the merge baseline. Two regression tests
-prove those boundaries. Placeholder project/view IDs also fail before networking.
+## Limits
 
-These changes are in the repository draft only. The running production bridge has
-not been replaced by this draft. Validation of the existing worker is separate.
+These checks cover the tested versions and a small disposable workload. They do
+not establish compatibility with every deployment or constitute a security audit.
+Deletion, attachments, recurrence, subtasks and precise due times are not synced.
+Google Tasks authorization is account-wide; the configured list restriction is
+an application boundary. Conflict recovery remains manual.
 
-## Limits and follow-up
-
-Conflict recovery remains manual. There is no notification service. Google Tasks
-has no per-list OAuth grant, so app-level scope restrictions are essential. The
-bridge deliberately does not synchronize deletion, attachments, recurrence,
-subtasks or precise times. A fresh independent-account installation has not been
-performed in this review; repeat the documented disposable-task validation before
-using a new deployment with important tasks.
-
-Production source hashes and live validation are recorded privately with the
-owner's infrastructure evidence, not published in this generic repository.
-
-## Fresh automated preparation
-
-The local preparation service collected the approved live source on 2026-11-02T18:09:14.492504+00:00. Source hashes matched the reviewed baseline. It reproduced the reviewed fix, verified the dependency lock, parsed Python syntax, scanned private-data patterns and ran 16 offline tests with networking and credential paths isolated. Unknown source changes require a new review; this is not an autonomous semantic security audit. No upload was performed.
+The repository is public. No open-source license has been selected. Production
+installation of these corrections and uploading the reviewed update are separate
+owner-controlled actions. Screenshots require separate review before publication.

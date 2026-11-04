@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import tempfile
 import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -22,12 +23,16 @@ SCOPE = 'https://www.googleapis.com/auth/tasks'
 
 def private_json(path, data):
     path = Path(path)
-    tmp = path.with_suffix('.tmp')
-    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), 'w') as out:
-        json.dump(data, out, indent=2)
-        out.flush()
-        os.fsync(out.fileno())
-    os.replace(tmp, path)
+    fd, temporary = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as out:
+            json.dump(data, out, indent=2)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 class Text(HTMLParser):
@@ -118,8 +123,10 @@ class Vikunja(API):
         body = dict(current['raw']) if current else {}
         old = current['value'] if current else {}
         body.update(title=value['title'], done=value['status'] == 'Completed')
-        # Keep rich notes unchanged when only another field changed.
-        if old.get('notes') != value['notes'] or not current or current.get('key') != key:
+        # First registration adds only the marker; preserve existing rich HTML.
+        if current and not current.get('key') and old.get('notes') == value['notes']:
+            body['description'] = (body.get('description') or '') + '<p>' + html.escape('[project-hub-sync:' + key + ']') + '</p>'
+        elif old.get('notes') != value['notes'] or not current or current.get('key') != key:
             body['description'] = '<p>' + html.escape(marked_notes(value['notes'], key)).replace('\n', '<br>') + '</p>'
         if old.get('due') != value['due'] or not current:
             body['due_date'] = (value['due'] + 'T12:00:00' + self.zone_offset(value['due'])) if value['due'] else '0001-01-01T00:00:00Z'

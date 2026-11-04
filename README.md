@@ -23,8 +23,9 @@ There is no dependency on an AI provider, model, hosted dashboard or public prox
 
 ## Requirements
 
-Use a maintained Python installation with OpenSSL on Linux, `venv`, timezone data,
-network access to your Vikunja instance and Google's APIs, and optionally systemd.
+Server examples below target Debian 13 with Python 3.13, OpenSSL, `venv`, timezone
+data, and systemd. Use an administrator account with `sudo`; if already root, omit
+`sudo`. The worker needs private access to Vikunja and outbound HTTPS to Google.
 The source uses Python's `zoneinfo` module. The reviewed Linux environment uses Python 3.13.5. The dependency lock records
 that environment; other operating systems/Python versions need their own validation.
 The supplied dependency lock records the reviewed environment; update and retest
@@ -36,15 +37,30 @@ instance. Create a dedicated Vikunja API token with only the task read/create/up
 and column-move permissions needed for this project. Avoid delete/account-management
 permissions; confirm your Vikunja version's available token restrictions.
 
+The live test used Vikunja v2.7.1 with these API permissions:
+
+| Resource | Permissions |
+| --- | --- |
+| `projects` | `views_buckets`, `views_buckets_tasks_update` |
+| `projects_views_tasks` | `read_all` |
+| `tasks` | `create`, `update` |
+
+Use a dedicated test user/project first. Token permission labels can differ between versions.
+
 ## Install the source
 
-Clone this private repository using your own GitHub authentication. Put the files
-in `/opt/vikunja-google-tasks-bridge` on the server, then create a virtualenv:
+The repository is public and can be cloned without GitHub credentials. On the
+server, install Git, Python virtualenv support and timezone data using your
+distribution packages. These commands are for a **new installation**:
 
 ```sh
+sudo apt-get update
+sudo apt-get install -y git python3-venv tzdata ca-certificates
+sudo git clone https://github.com/Gabeebus/vikunja-google-tasks-bridge.git /opt/vikunja-google-tasks-bridge
 cd /opt/vikunja-google-tasks-bridge
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.lock.txt
+sudo python3 -m venv .venv
+sudo .venv/bin/python -m pip install -r requirements.lock.txt
+.venv/bin/python -m pip check
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest -q
 ```
 
@@ -61,28 +77,69 @@ rerunning the tests; `requirements.lock.txt` is the reproducibility snapshot.
    publishing and verification requirements for your intended audience. A personal
    app is not Google-verified simply because it is in production; testing-mode
    authorizations may expire and require reauthorization.
-2. On a computer with a browser and the dependencies installed, run:
+2. On your browser computer, use Python 3.13 and a separate, user-owned checkout.
+   This step does not need root or `/opt`. Create its environment:
 
    ```sh
-   python3 authorize.py /private/path/client.json /private/path/google-token.json
+   git clone https://github.com/Gabeebus/vikunja-google-tasks-bridge.git
+   cd vikunja-google-tasks-bridge
+   python3 -m venv .venv
+   .venv/bin/python -m pip install -r requirements.lock.txt
+   mkdir -m 700 secrets
+   ```
+
+   Put the downloaded Desktop client JSON at `secrets/google-client.json`, mode600.
+   Then run:
+
+   ```sh
+   .venv/bin/python authorize.py secrets/google-client.json secrets/google-token.json
    ```
 
    Review the Tasks permission and finish consent yourself. The temporary callback
-   listens on loopback. Transfer the resulting token to your server over a private,
+   listens on loopback. An existing output file or unwritable destination is rejected
+   before consent opens. Keep using the same fresh filename for this first setup.
+   Transfer the resulting token to your server over a private,
    authenticated connection. Never paste it in an issue, chat, README or command line.
 3. Create a non-login `project-sync` service account. Keep source/virtualenv files
    root-owned and service-readable. Create `state` and `secrets` directories owned
    by `project-sync`, mode700; credential files mode600. The service must be able
    to update its Google token for refresh and its authoritative SQLite state.
-4. Copy `config.example.json` to `config.json`. Replace every project/view ID with
+   On a Debian server, create the account and private working directories once:
+
+   ```sh
+   cd /opt/vikunja-google-tasks-bridge
+   sudo useradd --system --user-group --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin project-sync
+   sudo install -d -o project-sync -g project-sync -m 700 state secrets
+   sudo -u project-sync .venv/bin/python -c 'from pathlib import Path; import os; os.umask(0o077); out=Path("state/config.json").open("x"); out.write(Path("config.example.json").read_text()); out.close()' 
+   ```
+
+   If the account already exists, inspect its permissions and skip `useradd`.
+   Creating `state/config.json` uses exclusive creation and refuses to overwrite an
+   existing configuration. Transfer your newly authorized token to a private incoming
+   location on the server using your existing authenticated connection. Install it
+   into `secrets/google-token.json`, owned by `project-sync`, mode600. Create the
+   Vikunja token file as `secrets/vikunja-token` with that same owner and mode.
+   The worker only needs the authorized-user token, not the separate client JSON.
+4. Edit `state/config.json`. Replace every project/view ID with
    your actual positive integer ID, choose your timezone, and set the Vikunja URL.
    Loopback is the example; use an authenticated private route and trusted HTTPS
    when reaching another host. Put the Vikunja token and Google token in the
-   configured files. Keep the config private and readable by the service account.
-5. From the install directory, create the dedicated Google lists once:
+   configured files. Keep the config private and writable by the service account. The bootstrap helper
+   saves list IDs by atomically replacing the config file, so its parent directory must also
+   be writable. Keeping it under the private `state` directory preserves root
+   ownership of the source and virtualenv.
+5. Check the local configuration and permissions first:
 
    ```sh
-   sudo -u project-sync .venv/bin/python bootstrap_lists.py --config config.json
+   sudo -u project-sync .venv/bin/python bootstrap_lists.py --config state/config.json --preflight
+   ```
+
+   This checks positive project/view IDs and the directories needed for private
+   atomic saves without contacting Google. Resolve any reported path or permission
+   error before continuing. Then create the dedicated Google lists once:
+
+   ```sh
+   sudo -u project-sync .venv/bin/python bootstrap_lists.py --config state/config.json
    ```
 
    **This creates five Google Tasks lists.** It checkpoints their IDs into the
@@ -98,30 +155,46 @@ It reports both persisted review items and newly detected conflicts/missing task
 
 ```sh
 cd /opt/vikunja-google-tasks-bridge
-sudo -u project-sync .venv/bin/python bridge.py --config config.json --check
+sudo -u project-sync .venv/bin/python bridge.py --config state/config.json --check
 ```
 
 After reviewing the scope, perform two manual sync runs before enabling the timer:
 
 ```sh
-sudo -u project-sync .venv/bin/python bridge.py --config config.json
-sudo -u project-sync .venv/bin/python bridge.py --config config.json
+sudo -u project-sync .venv/bin/python bridge.py --config state/config.json
+sudo -u project-sync .venv/bin/python bridge.py --config state/config.json
 ```
 
-**These runs write tasks.** The first run registers previously unmarked tasks;
+**These runs write tasks.** Registration appends a sync marker while preserving
+existing Vikunja description formatting. Google receives a plain-text version;
+editing notes in Google intentionally replaces Vikunja notes with escaped plain text.
+The first run registers previously unmarked tasks;
 subsequent runs create/update their counterparts. Test with a disposable task and
 confirm title, notes, due date, completion and column changes in both directions.
 Run again without changes and confirm no duplicates or unexpected updates.
 
 For systemd, copy `project-hub-sync.service` and `project-hub-sync.timer` into
-`/etc/systemd/system/`, review their paths/user and hardening, then:
+`/etc/systemd/system/`. The supplied service uses `state/config.json` and allows
+writes only in `state` and `secrets`. From the install directory:
+
+```sh
+sudo install -o root -g root -m 644 project-hub-sync.service project-hub-sync.timer /etc/systemd/system/
+sudo systemd-analyze verify /etc/systemd/system/project-hub-sync.service /etc/systemd/system/project-hub-sync.timer
+```
+
+After the two manual runs pass, enable scheduling:
 
 ```sh
 sudo systemctl daemon-reload
+sudo systemctl start project-hub-sync.service
+systemctl show project-hub-sync.service -p Result -p ExecMainStatus
 sudo systemctl enable --now project-hub-sync.timer
 systemctl show project-hub-sync.service -p Result -p ExecMainStatus
 systemctl status project-hub-sync.timer
 ```
+
+Confirm `Result=success` and `ExecMainStatus=0` from an actual worker run. An active
+timer alone does not prove a successful sync.
 
 The timer waits roughly 60 seconds after the previous run completes; it does not
 start overlapping workers. A file lock also refuses a concurrent manual worker.
@@ -147,13 +220,18 @@ Only the worker, OAuth/bootstrap helpers, tests, example config, dependency file
 systemd units and documentation belong here. Production credentials, config,
 state, private chats, media and infrastructure inventories are excluded.
 
-This repository starts **private**. No open-source license has been selected;
-no public redistribution rights are granted by this draft. Choose a license before
-an open-source release or broader distribution. Third-party dependencies retain
-their own licenses.
+This repository is public. No project license has been selected. Third-party
+dependencies retain their own licenses.
 
 ## References
 
 - [Vikunja API documentation](https://vikunja.io/docs/api-documentation/)
 - [Google Tasks API](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks)
 - [Installed-app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)
+
+
+## Demo board
+
+![Disposable demo board with the five bridge statuses](demo-board.png)
+
+This screenshot uses disposable test data.
